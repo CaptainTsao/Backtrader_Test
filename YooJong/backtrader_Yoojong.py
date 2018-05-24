@@ -13,136 +13,67 @@ import backtrader.indicators as btind
 import backtrader.feeds as btfeeds
 from mydatafeed import MyDataFeed
 
+# import extensions
+from extensions.analyzer_v1 import printTradeAnalysis, printSQN, AcctValue
+from extensions.convert_raw_data import convert_raw_data_from_csv
 
-
-
-class MyStrategy(bt.Strategy) :
-    params = (
-        ('maperiod', 15),
-         ('printlog', True),
-    )
-
-    def log(self, txt, dt=None, doprint=False):
-        ''' Logging function fot this strategy'''
-
-        if self.params.printlog or doprint:
-            dt = dt or self.datas[0].datetime.date(0)
-            print('%s, %s' % (dt.isoformat(), txt))
-
-    def __init__(self):
-        # Keep a reference to the "close" line in the data[0] dataseries
-        self.dataclose = self.datas[0].close
-
-        # To keep track of pending orders and buy price/commission
-        self.order = None
-        self.buyprice = None
-        self.buycomm = None
-
-        # Add a MovingAverageSimple indicator
-        self.sma = bt.indicators.SimpleMovingAverage(
-            self.datas[0], period=self.params.maperiod)
-
-    def notify_order(self, order):
-        if order.status in [order.Submitted, order.Accepted]:
-            # Buy/Sell order submitted/accepted to/by broker - Nothing to do
-            return
-
-        # Check if an order has been completed
-        # Attention: broker could reject order if not enough cash
-        if order.status in [order.Completed]:
-            if order.isbuy():
-                self.log(
-                    'BUY EXECUTED, Price: %.2f, Cost: %.2f, Comm %.2f' %
-                    (order.executed.price,
-                     order.executed.value,
-                     order.executed.comm))
-
-                self.buyprice = order.executed.price
-                self.buycomm = order.executed.comm
-            else:  # Sell
-                self.log('SELL EXECUTED, Price: %.2f, Cost: %.2f, Comm %.2f' %
-                         (order.executed.price,
-                          order.executed.value,
-                          order.executed.comm))
-
-            self.bar_executed = len(self)
-
-        elif order.status in [order.Canceled, order.Margin, order.Rejected]:
-            self.log('Order Canceled/Margin/Rejected')
-
-        # Write down: no pending order
-        self.order = None
-
-    def notify_trade(self, trade):
-        if not trade.isclosed:
-            return
-
-        self.log('OPERATION PROFIT, GROSS %.2f, NET %.2f' %
-                 (trade.pnl, trade.pnlcomm))
-
-    def next(self):
-        # Simply log the closing price of the series from the reference
-        self.log('Close, %.2f' % self.dataclose[0])
-
-        # Check if an order is pending ... if yes, we cannot send a 2nd one
-        if self.order:
-            return
-
-        # Check if we are in the market
-        if not self.position:
-
-            # Not yet ... we MIGHT BUY if ...
-            if self.dataclose[0] > self.sma[0]:
-
-                # BUY, BUY, BUY!!! (with all possible default parameters)
-                self.log('BUY CREATE, %.2f' % self.dataclose[0])
-
-                # Keep track of the created order to avoid a 2nd order
-                self.order = self.buy()
-
-        else:
-
-            if self.dataclose[0] < self.sma[0]:
-                # SELL, SELL, SELL!!! (with all possible default parameters)
-                self.log('SELL CREATE, %.2f' % self.dataclose[0])
-
-                # Keep track of the created order to avoid a 2nd order
-                self.order = self.sell()
-
-    def stop(self):
-        self.log('(MA Period %2d) Ending Value %.2f' %
-                 (self.params.maperiod, self.broker.getvalue()), doprint=True)
-
+# import strategies
+from Strategies.strat_1 import Strat1
+from Strategies.UsingPrettyOSC import SimplePOC
 
 
 if __name__ == '__main__' :
-    cerebro = bt.Cerebro()
-    cerebro.addstrategy(MyStrategy)
 
-    datapath = '/Users/YooJong/Projects/SystemTrading/YooJong/BTC_to_Backtrader.csv'
-    data = MyDataFeed(
-        dataname = datapath
-    )
+    cerebro = bt.Cerebro(stdstats=True)
+
+    # Observer Setting (bt.Cerebro(stdstats = Falses))
+    # cerebro.addobserver(AcctValue)
+    # cerebro.addobserver(bt.broker)
+
+    # Strategy setting
+    cerebro.addstrategy(SimplePOC)
+
+    # Feed Data into Cerebros
+    # 주식 CSV파일 읽을 때
+    #
+    # datapath = './resources/Stock_Dataset(170706)/068270.csv'
+    # data = convert_raw_data_from_csv(datapath)
+    # data = bt.feeds.PandasData(dataname=data,
+    #                            fromdate=datetime.datetime(2015, 1, 1)
+    #                            )
+
+    datapath = '/Users/YooJong/Programming/PythonProject/Backtrader_Test/YooJong/extensions/BTC_to_Backtrader.csv'
+    data = MyDataFeed(dataname=datapath,
+                      timeframe=bt.TimeFrame.Minutes, compression=30)
     # Add the Data Feed to Cerebro
     cerebro.adddata(data)
 
+    # 기본 거래 크기, 수수료 세팅
+    cerebro.addsizer(bt.sizers.PercentSizer)
+    cerebro.broker.setcommission(commission=0.005)
+
+
     # Set our desired cash start
-    cerebro.broker.setcash(10000000.0)
+    start_value = 10000000
+    cerebro.broker.setcash(start_value)
 
-    # Add a FixedSize sizer according to the stake
-    cerebro.addsizer(bt.sizers.FixedSize, stake=0.1)
 
-    # Set the commission
-    cerebro.broker.setcommission(commission=0.0)
+    # Analyzer setting
+    cerebro.addanalyzer(bt.analyzers.TradeAnalyzer, _name="ta")
+    cerebro.addanalyzer(bt.analyzers.SQN, _name="sqn")
 
     # Print out the starting conditions
-    print('Starting Portfolio Value: %.2f' % cerebro.broker.getvalue())
+    print('Starting Portfolio Value: {:,.2f}'.format(cerebro.broker.getvalue()))
+    strategies = cerebro.run()
+    firstStrat = strategies[0]
 
-    # Run over everything
-    cerebro.run()
+    port_value = cerebro.broker.getvalue()
+    print('Final Portfolio Value: {:,.2f}'.format(port_value))
+    print('P/L : {:,}'.format(port_value - start_value))
 
-    # Print out the final result
-    print('Final Portfolio Value: %.2f' % cerebro.broker.getvalue())
 
+    # print the analyzers
+    printTradeAnalysis(firstStrat.analyzers.ta.get_analysis())
+    printSQN(firstStrat.analyzers.sqn.get_analysis())
     # Plot the result
     cerebro.plot()

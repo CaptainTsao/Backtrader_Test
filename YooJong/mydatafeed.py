@@ -7,11 +7,15 @@ class MyDataFeed(btfeed.GenericCSVData):
         ('todate',   datetime.datetime(2018,  5, 20)),
         ('nullvalue', 0.0),
 
+        ('dtformat', ('%Y-%m-%d')),
+        ('tmformat', ('%H:%M:%S')),
+
         ('datetime', 0),
-        ('volume', 1),
-        ('high', 2),
-        ('low', 3),
-        ('open', 4),
-        ('close', 5),
+        ('time', 1),
+        ('volume', 2),
+        ('high', 3),
+        ('low', 4),
+        ('open', 5),
+        ('close', 6),
         ('openinterest', -1)
     )
