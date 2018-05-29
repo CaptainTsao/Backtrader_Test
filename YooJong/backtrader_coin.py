@@ -11,14 +11,13 @@ import datetime
 import backtrader as bt
 import backtrader.indicators as btind
 import backtrader.feeds as btfeeds
-from mydatafeed import MyDataFeed
 
 # import extensions
 from extensions.observer.ob_acctvalue import AcctValue
-from extensions.convert_raw_data import convert_raw_data_from_KI
+from extensions.datafeed.convert_raw_data import convert_raw_data_from_KI
 
 # import strategies
-from Strategies.HighRateLong import HighRateLong
+from Strategies.strat_madiff import STRAT_MADIFF
 
 
 '''
@@ -52,7 +51,7 @@ if __name__ == '__main__' :
 
     ''' -------------------------------------------------------------------  '''
     # Strategy Setting
-    cerebro.addstrategy(HighRateLong)
+    cerebro.addstrategy(STRAT_MADIFF)
 
 
     ''' -------------------------------------------------------------------  '''
